@@ -2,43 +2,52 @@ library(shiny)
 library(shinyWidgets)
 library(shinydashboard)
 library(shinydashboardPlus)
+library(shinycssloaders)
 library(tidyverse)
 
 shinyApp(
     ui = dashboardPagePlus(
         header = dashboardHeaderPlus(
-            enable_rightsidebar = TRUE,
-            rightSidebarIcon = "gears",
+            enable_rightsidebar = FALSE,
             left_menu = tagList(
                 dropdownButton(
                     label = "Controls",
                     icon = icon("sliders"),
                     status = "primary",
                     circle = FALSE,
-                    sliderInput("p","Number in sensitive mixture:",min = 0,max = 100,value = 3,step=1),
-                    sliderInput("var_y1","Covariance of sensitive mixture:",min = 0,max = 1,value = 0, step=.05),
-                    sliderInput("var_y0","Covariance of resistant mixture:",min = 0,max = 1,value = 0, step=.05),
-                    sliderInput("var_epsilon1","Noise of sensitive mixture:",min = 0,max = 1,value = .35, step=.05),
-                    sliderInput("var_epsilon0","Noise of resistant mixture:",min = 0,max = 1,value = .65, step=.05),
-                    sliderInput("max_signal","Maximum signal:",min = 1,max = 10,value = 5, step=1),
+                    sliderInput("p","Number in second mixture component:",min = 0,max = 100,value = 3,step=1),
+                    sliderInput("var_y0","Covariance of first mixture component:",min = 0,max = 1,value = 0, step=.05),
+                    sliderInput("var_y1","Covariance of second mixture component:",min = 0,max = 1,value = 0, step=.05),
+                    sliderInput("var_epsilon0","Noise of first mixture component:",min = 0,max = 1,value = .65, step=.05),
+                    sliderInput("var_epsilon1","Noise of second mixture component:",min = 0,max = 1,value = .35, step=.05),
+                    sliderInput("max_signal","Maximum signal (distance between mixtures):",min = 1,max = 10,value = 5, step=1),
                     sliderInput("repetitions","Simulation repetitions:",min = 1,max = 25,value = 5, step=1)
                 )
             )
         ),
         sidebar = dashboardSidebar(disable=TRUE),
         body = dashboardBody(
-            titlePanel('Bivariate mixture of normals and correlation'),
+            boxPlus(
+                title = "Bivariate mixture of normals and correlation", 
+                closable = FALSE, 
+                width = NULL,
+                solidHeader = TRUE, 
+                collapsible = TRUE,
+                h5('Welcome to our R shiny app for visualizing how violation of the underlying assumption of univariate normality affects common measures of statistical agreement between two random variables. Use the controls above to adjust the simulation settings and see the effect on correlation!'),
+                h5('The points in the righthand figures below are simulation realizations for two random variables each generated from a bivariate mixture of normal distributions. The color designates the underlying mixture component and four signal-to-noise regimes are shown.'),
+                h5('The underlying mixture distributions are shown in the',tags$em('Generating distributions'), 'tab. As above, the color designates the mixture component and the same four signal-to-noise regimes are shown.'),
+                h5('The figure in the lefthand panel shows the agreement between the two random variables for varying signal-to-noise regimes. A closed-form calculation for the Pearson correlation is provided along with the empirical Spearman and Matthews correlation measures computed across simulation repetitions.'),
+                h5('Matthews correlation is a binary measure of correlation and highlights the strong agreement even under relatively low signal-to-noise. A naive cutoff of one-half the signal was used to binarize the points for this calculcation and is shown with the black dashed lines in the righthand figures. On the other hand, the commonly-reported Pearson correlation is influenced upwards by the second mixture component with the larger mean and does not accurately reflect the level of agreement between the two random variables. The Spearman correlation is consistently low in the absence of intra-mixture covariance; increasing the intra-mixture covariances and/or decreasing the noise strongly influences this measure.')),
             setShadow(class = "dropdown-menu"),
             fluidRow(
                 splitLayout(cellWidths = c("49%", "49%"), 
                             tabsetPanel(type='tabs',
-                                        tabPanel("Correlation measures for varying signal-to-noise regimes",plotOutput("correlationsPlot"))),
+                                        tabPanel("Correlation measures for varying signal-to-noise regimes",plotOutput("correlationsPlot") %>% withSpinner(color="#0dc5c1"))),
                             tabsetPanel(type='tabs',
-                                        tabPanel("Simulation realizations", plotOutput("distributionsPlot")),
-                                        tabPanel("Generating distributions", plotOutput("densitiesPlot"))))
+                                        tabPanel("Simulation realizations", plotOutput("distributionsPlot") %>% withSpinner(color="#0dc5c1")),
+                                        tabPanel("Generating distributions", plotOutput("densitiesPlot") %>% withSpinner(color="#0dc5c1"))))
             )
         ),
-        rightsidebar = rightSidebar(),
         skin='purple',
     ),
     server = function(input, output) {
