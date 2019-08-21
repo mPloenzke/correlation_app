@@ -81,6 +81,7 @@ shinyApp(
                     q <- 1-p
                     covar_xx <- q*var_y0+q*mu_y0^2+p*mu_y1^2+p*var_y1-2*(q*p*mu_y0*mu_y1)-((q*mu_y0)^2)-((p*mu_y1)^2)
                     var_x <- q*((var_y0+var_epsilon0+mu_y0^2)-(var_y1+var_epsilon1+mu_y1^2)) + (var_y1+var_epsilon1+mu_y1^2) - (q*(mu_y0-mu_y1)+mu_y1)^2
+                    
                     res <- as_tibble(res) %>% 
                         mutate(signal=mu_y1-mu_y0,
                                mu_y1 = mu_y1,
@@ -92,7 +93,6 @@ shinyApp(
                                #p_dist = dist>=nth(dist,sum(mixture),descending=TRUE),
                                p_dist = dist/2>=mu_y1/2,
                                spearman=cor(x,y,method='spearman'),
-                               matthews = mltools::mcc(preds=p_dist,actuals=mixture),
                                pearson = covar_xx/(var_x))
                     reprez <- bind_rows(reprez,res)
                 }
@@ -121,8 +121,8 @@ shinyApp(
                 mutate(maxx = -Inf, 
                        maxy = Inf,
                        pearson = as.character(round(pearson,digits=2))) %>%
-                mutate(pearson = latex2exp::TeX(paste("$\\rho$ = ",pearson,sep=' '),output='character')) %>%
                 distinct(signal_to_noise,maxx, maxy, pearson) %>%
+                mutate(pearson = latex2exp::TeX(paste("$\\rho$ = ",pearson,sep=' '),output='character')) %>%
                 rename(x=maxx, y=maxy)
             p <- tdat %>%
                 ggplot(aes(x=x,y=y)) + 
@@ -141,15 +141,31 @@ shinyApp(
         })
         
         output$correlationsPlot <- renderPlot({
+            matthews <- twomixtures() %>%
+                group_by(signal_to_noise, repetition) %>%
+                summarise(TP = sum(p_dist & mixture==1),
+                          TN = sum(!p_dist & mixture==0),
+                          FP = sum(p_dist & mixture==0),
+                          FN = sum(!p_dist & mixture==1)) %>%
+                ungroup() %>%
+                mutate(method = 'matthews',
+                       value = ((TP*TN) - (FP*FN))/sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN))) %>%
+                select(signal_to_noise, repetition, method, value) %>%
+                mutate(method=factor(method,levels=c('pearson','spearman','matthews')))
             tdat <- twomixtures() %>%
                 tidyr::gather('method','value',spearman:pearson) %>%
-                mutate(method=as.factor(method))
-            p2 <- tdat %>% 
+                mutate(method=factor(method,levels=c('pearson','spearman','matthews')))
+            tdat2 <- tdat %>% 
                 filter(method=='pearson') %>%
-                distinct(signal_to_noise, value, method) %>%
+                distinct(signal_to_noise, value, method)
+            tdat3 <- tdat %>% 
+                filter(method != 'pearson') %>%
+                distinct(signal_to_noise, value, method, repetition) %>%
+                bind_rows(matthews)
+            p2 <- tdat2 %>%
                 ggplot(aes(x=signal_to_noise,y=value, color=method)) + 
                 geom_line(lwd=2,alpha=.75)+
-                stat_smooth(data = tdat %>% filter(method != 'pearson'),aes(x=signal_to_noise,y=value, color=method), 
+                stat_smooth(data = tdat3, aes(x=signal_to_noise,y=value, color=method), 
                             se=FALSE, lwd=2, method = 'gam', formula = y ~ s(x, bs = "cr")) + 
                 theme_bw() + 
                 scale_color_brewer(palette='Dark2',drop=FALSE) + 
